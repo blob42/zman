@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# zman: interactive fzf man-pages browser
+set -e
+
+sections=""
+FZF_MAN_SECTIONS_SCRIPT=~/scripts/fzf/fzf_zman_sections
+OFS="$IFS"
+AICHAT_DEFAULT_MODEL="ollama:gemma3:4b"
+
+# @flag -g --gen Generate man keywords
+# @flag -d --debug
+# @option -s --sections
+# @arg query*
+
+usage(){
+    echo "Usage: $0 [-h] [-v] [-s section[,section ...]]"
+    echo "  -h, --help     Show help and exit"
+    echo "  -s, --section  Specify comma separated list of man page sections"
+}
+
+error(){
+  echo "error message $1"
+  dunstify -u critical $1
+  exit 40
+}
+
+
+ai_gen_keywords(){
+    read -p "ai-man topic: " -r input_query
+    command -v aichat >/dev/null || errquit 'missing aichat'
+    [ "$(aichat --list-roles | grep zman-keywords)" ] || errquit 'missing role zman-keywords'
+    aichat -m $AICHAT_DEFAULT_MODEL -r zman-keywords "$input_query"
+}
+
+
+eval "$(argc --argc-eval "$0" "$@")"
+
+if [[ "$argc_debug" -eq 1 ]]; then
+     echo gen: $argc_gen
+     echo sections: ${argc_sections[@]}
+     echo query: ${argc_query[@]}
+fi
+# exit 0
+
+
+query="${argc_query[@]}"
+sections="$argc_sections"
+prompt="($query)> "
+
+if [[ "$argc_gen" -eq 1 ]]; then
+    query="$(ai_gen_keywords)"
+    query=$(echo -n "$query" | sed -E "s/(\w+) (\w+)/'\1 \2'/g")
+    prompt="(ai)> "
+
+    if [[ "$argc_debug" -eq 1 ]]; then
+        echo "$query"
+    fi
+fi
+
+
+if [[ $query =~ "|" ]];then
+    prompt="(ai)> "
+fi
+
+
+pre_query=""
+if [ -n "$sections" ]; then
+    pre_query="-S $sections"
+fi
+
+if [ -z "$query" ]; then
+    query="."
+fi
+
+#query="dlopen|dlsym|dlclose|dynamic linking|shared library|loadlibrary|rt_mutex|rt_thread"
+# echo "query: $query"
+# --preview "echo topic={1} section=\$(echo {2} | tr -d '()')" \
+
+# disable IFS for regex queries gives narrower results
+# this is only done for the initial result from ai, after calling fzf_zman_sections
+# IFS should not be cleared
+# if [[ $query =~ "ai:" ]];then
+    # IFS=''
+#     query="${query#ai:}"
+#     echo zman: $query >> /tmp/zman_debug
+# fi
+ man $pre_query -k $query | fzf --header-first --prompt="$prompt" \
+    --preview "man \$(echo {2} | tr -d '()') {1} 2>/dev/null | col -bx | bat -l man -p --color always" \
+    --bind "alt-enter:reload-sync(man $pre_query -k {q})+transform-prompt(printf '(%s)> ' \$FZF_QUERY)+clear-query" \
+    --bind "alt-a:become(zman -g)" \
+    --bind "ctrl-s:become($FZF_MAN_SECTIONS_SCRIPT \"$query\" \$FZF_PROMPT)" \
+    --bind "enter:become(echo {} | tr -d '()' | awk '{printf \"%s \", \$2} {print \$1}' | xargs -r man)" \
+    --header 'A-Ent: update query. C-s: sections: A-a: AI.  Ent: Choose.'

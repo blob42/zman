@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# set -x
+
+QUERY="$1"
+FZF_QUERY="$2"
+if [[ -n "$FZF_QUERY" && "$FZF_QUERY" != "()>" && ! "$QUERY" =~ "|" ]]; then
+    QUERY=$(echo $FZF_QUERY | tr -d '()>')
+fi
+MAN_SECTIONS_CACHE=~/.cache/dhelp_man_sections.cache
+
+
+declare -A sections=(
+    [0p]="POSIX C library header files (Unix v6)"
+    [1]="General commands"
+    [1p]="POSIX General Commands"
+    [2]="System calls"
+    [3]="Library functions, covering in particular the C standard library"
+    [4]="File formats and conventions"
+    [5]="Miscellaneous"
+    [6]="Games and screensavers"
+    [7]="Special files (usually devices, those found in /dev) and drivers"
+    [8]="System administration commands and daemons"
+    [9]="Kernel routines (FreeBSD, SVR4, Linux)"
+    [n]="Tcl/Tk commands"
+)
+
+pairs=()
+[ -f $MAN_SECTIONS_CACHE ] || ~/scripts/dmenu/dhelp-cache
+cached_sections="$(cat $MAN_SECTIONS_CACHE)"
+for k in $cached_sections; do
+    pairs+=("$k ${sections[$k]}")
+done
+for k in "${!sections[@]}"; do
+    pairs+=("$k ${sections[$k]}")
+done
+
+selected=$(printf "%s\n" "${pairs[@]}" | sort | uniq | fzf -m)
+
+[ -z "$selected" ] && exec ~/scripts/fzf/zman $QUERY
+
+
+sections=
+section_number=$(echo "$selected" | cut -d' ' -f1)
+for s in $section_number; do
+    sections+=$s,
+done
+sections="${sections%,}"
+
+if [ "$sections" != "_" ]; then
+    exec ~/scripts/fzf/zman -s $sections "$QUERY"
+else
+    exec ~/scripts/fzf/zman "$QUERY"
+fi
+

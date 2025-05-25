@@ -2,10 +2,14 @@
 # set -x
 
 QUERY="$1"
-FZF_QUERY="$2"
-if [[ -n "$FZF_QUERY" && "$FZF_QUERY" != "()>" && ! "$QUERY" =~ "|" ]]; then
-    QUERY=$(echo $FZF_QUERY | tr -d '()>')
+FZF_PROMPT="$2"
+FZF_QUERY="$3"
+if [[ -n "$FZF_QUERY" ]]; then
+    QUERY="$FZF_QUERY"
+elif [[ -n "$FZF_PROMPT" && "$FZF_PROMPT" != "()>" && ! "$QUERY" =~ "|" ]]; then
+    QUERY=$(echo $FZF_PROMPT | tr -d '()>')
 fi
+
 MAN_SECTIONS_CACHE=~/.cache/dhelp_man_sections.cache
 
 
@@ -24,6 +28,7 @@ declare -A sections=(
     [n]="Tcl/Tk commands"
 )
 
+# Convert the associative array to an array of strings where each string is a key and value pair separated by a tab character
 pairs=()
 [ -f $MAN_SECTIONS_CACHE ] || ~/scripts/dmenu/dhelp-cache
 cached_sections="$(cat $MAN_SECTIONS_CACHE)"
@@ -34,12 +39,14 @@ for k in "${!sections[@]}"; do
     pairs+=("$k ${sections[$k]}")
 done
 
+# Pass the concatenated strings to fzf for interactive selection
 selected=$(printf "%s\n" "${pairs[@]}" | sort | uniq | fzf -m)
 
 [ -z "$selected" ] && exec ~/scripts/fzf/zman $QUERY
 
 
 sections=
+# Extract the selected key and value
 section_number=$(echo "$selected" | cut -d' ' -f1)
 for s in $section_number; do
     sections+=$s,

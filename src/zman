@@ -84,10 +84,12 @@ fi
 #     query="${query#ai:}"
 #     echo zman: $query >> /tmp/zman_debug
 # fi
+fzf_sections_args="\"$query\" \$FZF_PROMPT \$FZF_QUERY"
  man $pre_query -k $query | fzf --header-first --prompt="$prompt" \
     --preview "man \$(echo {2} | tr -d '()') {1} 2>/dev/null | col -bx | bat -l man -p --color always" \
     --bind "alt-enter:reload-sync(man $pre_query -k {q})+transform-prompt(printf '(%s)> ' \$FZF_QUERY)+clear-query" \
     --bind "alt-a:become(zman -g)" \
-    --bind "ctrl-s:become($FZF_MAN_SECTIONS_SCRIPT \"$query\" \$FZF_PROMPT)" \
+    --bind "ctrl-s:become($FZF_MAN_SECTIONS_SCRIPT $fzf_sections_args)" \
     --bind "enter:become(echo {} | tr -d '()' | awk '{printf \"%s \", \$2} {print \$1}' | xargs -r man)" \
+    --bind 'enter:become(echo $FZF_QUERY)' \
     --header 'A-Ent: update query. C-s: sections: A-a: AI.  Ent: Choose.'

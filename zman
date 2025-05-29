@@ -327,5 +327,4 @@ fzf_sections_args="\"$query\" \$FZF_PROMPT \$FZF_QUERY"
     --bind "alt-a:become(zman -g)" \
     --bind "ctrl-s:become($FZF_MAN_SECTIONS_SCRIPT $fzf_sections_args)" \
     --bind "enter:become(echo {} | tr -d '()' | awk '{printf \"%s \", \$2} {print \$1}' | xargs -r man)" \
-    --bind 'enter:become(echo $FZF_QUERY)' \
     --header 'A-Ent: update query. C-s: sections: A-a: AI.  Ent: Choose.'

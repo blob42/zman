@@ -5,7 +5,11 @@ set -e
 sections=""
 FZF_MAN_SECTIONS_SCRIPT=~/scripts/fzf/fzf_zman_sections
 OFS="$IFS"
-AICHAT_DEFAULT_MODEL="ollama:gemma3:4b"
+CHAT_MODEL="qwen3-fast"
+TEMP=0.4
+MAX_TOKENS=30
+OAI_API=https://opanai-endpiont/v1
+HEADERS="-H 'Content-Type: application/json'"
 
 # @flag -g --gen Generate man keywords
 # @flag -d --debug
@@ -27,9 +31,45 @@ error(){
 
 ai_gen_keywords(){
     read -p "ai-man topic: " -r input_query
-    command -v aichat >/dev/null || errquit 'missing aichat'
-    [ "$(aichat --list-roles | grep zman-keywords)" ] || errquit 'missing role zman-keywords'
-    aichat -m $AICHAT_DEFAULT_MODEL -r zman-keywords "$input_query"
+    command -v yq >/dev/null || errquit 'missing yq'
+
+    data="$(yq -oj <<EOF
+    model: $CHAT_MODEL
+    temperature: $TEMP
+    max_tokens: $MAX_TOKENS
+    grammar: |
+        root ::= keyword ( "|" keyword )*
+        keyword ::= [a-zA-Z0-9-]+
+    messages:
+        - role: system
+          content: |
+            You are an AI manpage keyword generator. Your task is to transform user input into a list of precise keywords for Linux man-page searches.
+
+            Given a query:
+            0. Assume the role of an expert in the context domain (e.g., "file system" → file system administrator).
+            1. Tokenize input into words.
+            2. Generate *only technical synonyms* relevant to Linux (e.g., for "disk", use "disk", "hdd", "storage" but NOT generic terms like "drive").
+            3. For each word, create a synonym list using domain-specific vocabulary (e.g., for "network", include "ip", "tcp", "socket").
+            4. Filter out:
+               - Generic English words (e.g., 'the', 'and', 'system', 'process')
+               - Stopwords (e.g., 'how', 'to')
+               - Special characters (except hyphens in technical terms like "apt-get")
+            5. Remove duplicate stems (e.g., "read", "reading" → keep only "read").
+
+            ## OUTPUT FORMAT:
+            - Return a pipe-separated list of keywords: keyword|keyword|...
+            - Keywords must be Linux-specific technical terms (e.g., use 'printf' not 'print').
+            - NO explanations or notes. Only the keyword list.
+
+            Example:
+            Input: "how to read files"
+            Output: read|file|files
+        - role: user
+          content: $input_query
+
+EOF
+)"
+    curl -skL $HRADERS -d "$data" $OAI_API/chat/completions
 }
 
 
@@ -48,12 +88,13 @@ sections="$argc_sections"
 prompt="($query)> "
 
 if [[ "$argc_gen" -eq 1 ]]; then
-    query="$(ai_gen_keywords)"
+    query="$(ai_gen_keywords | yq '.choices[0].message.content')"
     query=$(echo -n "$query" | sed -E "s/(\w+) (\w+)/'\1 \2'/g")
     prompt="(ai)> "
 
     if [[ "$argc_debug" -eq 1 ]]; then
         echo "$query"
+        exit 0
     fi
 fi
 

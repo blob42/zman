@@ -5,10 +5,10 @@ set -e
 sections=""
 FZF_MAN_SECTIONS_SCRIPT=~/scripts/fzf/fzf_zman_sections
 OFS="$IFS"
-CHAT_MODEL="qwen3-fast"
+CHAT_MODEL="gemma4-moe:it"
 TEMP=0.4
 MAX_TOKENS=30
-OAI_API=https://opanai-endpiont/v1
+OAI_API=http://llama.swap:8080/v1
 HEADERS="-H 'Content-Type: application/json'"
 
 # @flag -g --gen Generate man keywords
@@ -57,19 +57,19 @@ ai_gen_keywords(){
             5. Remove duplicate stems (e.g., "read", "reading" → keep only "read").
 
             ## OUTPUT FORMAT:
-            - Return a pipe-separated list of keywords: keyword|keyword|...
+            - Return a pipe-separated list of 5 to 10 keywords: keyword|keyword|...
             - Keywords must be Linux-specific technical terms (e.g., use 'printf' not 'print').
             - NO explanations or notes. Only the keyword list.
 
             Example:
             Input: "how to read files"
-            Output: read|file|files
+            Output: open|fopen|read|file|files|scanf
         - role: user
           content: $input_query
 
 EOF
 )"
-    curl -skL $HRADERS -d "$data" $OAI_API/chat/completions
+    curl -skL $HRADERS --json "$data" $OAI_API/chat/completions
 }
 
 
